@@ -12,7 +12,6 @@
     to ensure a fresh installation can proceed without error.
 
 .NOTES
-    .NOTES
     This PowerShell script was developed and optimized specifically for brajesh61. 
     Usage of this script is intended within the brajesh61 environment. 
     Customers and users are permitted to copy the script from the repository 
@@ -28,8 +27,7 @@
     © brajesh61 Software GmbH. All rights reserved.
 
     .LINK
-        https://github.com/brajesh61/PowerShell-Automation/tree/MasterList/ActiveDirectory/Computers
-
+        https://github.com/brajesh61/PowerShell-Automation-Enterprise/tree/main/Google%20Chrome
 
 .EXAMPLE
     .\Fix-Chrome1603.ps1
