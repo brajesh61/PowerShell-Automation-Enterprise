@@ -12,11 +12,24 @@
     to ensure a fresh installation can proceed without error.
 
 .NOTES
-    Author: Brajesh
-    Source : https://github.com/brajesh61
-    Date:   September 2026
-    Tested on: Windows 10/11
-    Requirements: Run with elevated privileges (Administrator)
+    .NOTES
+    This PowerShell script was developed and optimized specifically for brajesh61. 
+    Usage of this script is intended within the brajesh61 environment. 
+    Customers and users are permitted to copy the script from the repository 
+    and apply it in brajesh61 solutions.
+
+    Please note: The general terms of use for brajesh61 do not apply to this script. 
+    brajesh61 Software GmbH assumes no responsibility or liability for its functionality, 
+    usage, or any consequences arising from its use. This script is provided freely 
+    and without warranty.
+
+    PowerShell is a product of Microsoft Corporation. 
+    brajesh61 is a product of brajesh61 Software GmbH. 
+    © brajesh61 Software GmbH. All rights reserved.
+
+    .LINK
+        https://github.com/brajesh61/PowerShell-Automation/tree/MasterList/ActiveDirectory/Computers
+
 
 .EXAMPLE
     .\Fix-Chrome1603.ps1
