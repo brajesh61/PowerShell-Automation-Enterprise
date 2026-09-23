@@ -1,60 +1,99 @@
-﻿       $Version = "Enter Version"
-       # Detect Chrme ARP Entry
-        $ChromeARP = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*","HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like "*Google Chrome*" }
+<#
+.SYNOPSIS
+    Automated cleanup and uninstallation script for Google Chrome.
+
+.DESCRIPTION
+    This script detects Google Chrome installations via ARP entries and setup.exe,
+    then attempts to uninstall or remove orphaned entries and leftover folders.
+    It handles multiple scenarios:
+        1. ARP entry present with setup.exe available
+        2. setup.exe present but ARP entry missing
+        3. ARP entry present but setup.exe missing
+        4. Neither ARP entry nor setup.exe found
+
+    The script uses only native PowerShell commands (Start-Process, Remove-Item, etc.)
+    for uninstall and cleanup operations.
+
+.PARAMETER TargetVersion
+    Specify the target version string to compare against installed versions.
+    Default is "Enter Version".
+
+.NOTES
+    Author: Brajesh
+    Date:   September 2026
+    Tested on: Windows 10/11
+    Requirements: Run with elevated privileges (Administrator)
+
+.EXAMPLE
+    .\Uninstall-Chrome.ps1
+    Runs the script with default TargetVersion.
+
+.EXAMPLE
+    .\Uninstall-Chrome.ps1 -TargetVersion "118.0.5993.90"
+    Uninstalls Chrome versions less than or equal to 118.0.5993.90.
+#>
 
 
+# Define target version (replace with actual version string if needed)
+$TargetVersion = "Enter Version"
 
-        # Detect setup.exe
-        $SetupExe = Get-ChildItem "C:\Program Files\Google\Chrome\Application", "C:\Program Files (x86)\Google\Chrome\Application" -Filter "setup.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
-        # ------------------------------------------------------------
-        # Case 1: Uninstall lower version if exist
-        # ------------------------------------------------------------
-        If($ChromeARP)
-        {
-        Foreach($Chrome in $ChromeARP){
-         $Version = $Chrome.DisplayVersion
-       $PSChild = $Chrome.PSChildName
-         $UninstallString = "$envProgramFiles\Google\Chrome\Application\$Version\Installer\setup.exe"
-         $UninstallStringX86 = "$envProgramFilesX86\Google\Chrome\Application\$Version\Installer\setup.exe"
-        If($Version -le "$Version")
-        {
-             If($PSChild -like "*Google Chrome*"){
-             If(Test-Path -Path $UninstallString){ 
-                Execute-Process -Path $UninstallString -Parameters "--uninstall --channel=stable --system-level --verbose-logging --force-uninstall" -ContinueOnError $true
-                If(Test-Path -Path "$envProgramFiles\Google\Chrome\Application\$Version"){
-                 Remove-Folder -Path "$envProgramFiles\Google\Chrome\Application\$Version" -ContinueOnError $true}
-                }
-                If(Test-Path -Path $UninstallStringX86){
-                    Execute-Process -Path $UninstallStringX86 -Parameters "--uninstall --channel=stable --system-level --verbose-logging --force-uninstall" -ContinueOnError $true
-                If(Test-Path -Path "$envProgramFilesX86\Google\Chrome"){
-                 Remove-Folder -Path "$envProgramFilesX86\Google\Chrome" -ContinueOnError $true}
-                 Remove-Folder -Path "$envProgramFilesX86\Google" -ContinueOnError $true
-                }
-                Write-Log -Message "Google chrome $Version is uninstalled successfully...." -Source ${CmdletName}
-              }
-              Else
-                {
-                If($PSChild -notlike "*Google Chrome*")
-                   {
-                     Execute-MSI -Action 'Uninstall' -Path "$PSChild" -Parameters "/qn /norestart" -ContinueOnError $true
-                     Write-Log -Message "Google chrome $Version is uninstalled successfully...." -Source ${CmdletName}
-                   }
-                   If(Test-Path -Path "$envProgramFilesX86\Google\Chrome"){
-                   Remove-Folder -Path "$envProgramFilesX86\Google\Chrome" -ContinueOnError $true}
-                   Remove-Folder -Path "$envProgramFilesX86\Google" -ContinueOnError $true
-                   Remove-Folder -Path "$envProgramFiles\Google" -ContinueOnError $true
-                }
-              }
-           }
-        }
-        
-        
-        # ------------------------------------------------------------
-        # Case 2: setup.exe present BUT ARP entry missing Exid code 1603 solution
-        # ------------------------------------------------------------
-        if ($SetupExe -and (-not $ChromeARP)) {
-             
-            # Remove MSI Product Entries
+# Detect Chrome ARP entry
+$ChromeARP = Get-ItemProperty `
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", `
+    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" `
+    -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like "*Google Chrome*" }
+
+# Detect setup.exe
+$SetupExe = Get-ChildItem `
+    "C:\Program Files\Google\Chrome\Application", `
+    "C:\Program Files (x86)\Google\Chrome\Application" `
+    -Filter "setup.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+
+# ------------------------------------------------------------
+# Case 1: Uninstall lower version if exist
+# ------------------------------------------------------------
+if ($ChromeARP) {
+    foreach ($Chrome in $ChromeARP) {
+        $Version = $Chrome.DisplayVersion
+        $PSChild = $Chrome.PSChildName
+
+        $UninstallString = "$env:ProgramFiles\Google\Chrome\Application\$Version\Installer\setup.exe"
+        $UninstallStringX86 = "$env:ProgramFiles(x86)\Google\Chrome\Application\$Version\Installer\setup.exe"
+
+        if ($Version -le $TargetVersion) {##Comment this if version not required
+            if ($PSChild -like "*Google Chrome*") {
+                if (Test-Path $UninstallString) {
+                    Start-Process -FilePath $UninstallString -ArgumentList "--uninstall --channel=stable --system-level --verbose-logging --force-uninstall" -Wait
+                    Remove-Item "$env:ProgramFiles\Google\Chrome\Application\$Version" -Recurse -Force -ErrorAction SilentlyContinue
+                }
+                if (Test-Path $UninstallStringX86) {
+                    Start-Process -FilePath $UninstallStringX86 -ArgumentList "--uninstall --channel=stable --system-level --verbose-logging --force-uninstall" -Wait
+                    Remove-Item "$env:ProgramFiles(x86)\Google\Chrome" -Recurse -Force -ErrorAction SilentlyContinue
+                    Remove-Item "$env:ProgramFiles(x86)\Google" -Recurse -Force -ErrorAction SilentlyContinue
+                }
+                Write-Host "Google Chrome $Version uninstalled successfully." -ForegroundColor Green
+            }
+            else {
+                # Generic MSI uninstall
+                $UninstallCmd = "msiexec.exe /x $PSChild /qn /norestart"
+                Start-Process -FilePath "msiexec.exe" -ArgumentList "/x $PSChild /qn /norestart" -Wait
+                Write-Host "Google Chrome $Version uninstalled successfully." -ForegroundColor Green
+
+                Remove-Item "$env:ProgramFiles(x86)\Google\Chrome" -Recurse -Force -ErrorAction SilentlyContinue
+                Remove-Item "$env:ProgramFiles(x86)\Google" -Recurse -Force -ErrorAction SilentlyContinue
+                Remove-Item "$env:ProgramFiles\Google" -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }##Comment this if version not required
+    }
+}
+
+# ------------------------------------------------------------
+# Case 2: setup.exe present BUT ARP entry missing 
+# ------------------------------------------------------------
+elseif ($SetupExe -and (-not $ChromeARP)) {
+    Write-Host "setup.exe found but ARP entry missing. Running Chrome cleanup." -ForegroundColor Green
+
+     # Remove MSI Product Entries
             Get-ChildItem "HKLM:\SOFTWARE\Classes\Installer\Products" -ErrorAction SilentlyContinue |
             ForEach-Object {
                 try {
@@ -63,13 +102,13 @@
                     if ($Props.ProductName -like "*Google Chrome*" -or
                         $Props.ProductName -like "*Chrome*") {
 
-                        Write-Log "Removing MSI Product: $($Props.ProductName)" -Source ${CmdletName}
+                        Write-Host "Removing MSI Product: $($Props.ProductName)" -ForegroundColor Green
 
                         Remove-Item $_.PSPath -Recurse -Force -ErrorAction SilentlyContinue
                     }
                 }
                 catch {
-                    Write-Log "Failed processing MSI Product Key: $($_.PSChildName)" -Source ${CmdletName}
+                    Write-Host "Failed processing MSI Product Key: $($_.PSChildName)" -ForegroundColor Green
                 }
             }
 
@@ -84,62 +123,53 @@
                     if ($Props.DisplayName -like "*Google Chrome*" -or
                         $Props.DisplayName -like "*Chrome*") {
 
-                        Write-Log "Removing MSI UserData: $($Props.DisplayName)" -Source ${CmdletName}
+                        Write-Host "Removing MSI UserData: $($Props.DisplayName)" -ForegroundColor Green
 
                         Remove-Item $_.PSPath -Recurse -Force -ErrorAction SilentlyContinue
                     }
                 }
                 catch {
-                    Write-Log "Failed processing MSI UserData Key: $($_.PSChildName)" -Source ${CmdletName}
+                    Write-Host "Failed processing MSI UserData Key: $($_.PSChildName)" -ForegroundColor Red
                 }
             }
-            Write-Log "setup.exe found but ARP entry missing. Running Chrome cleanup." -Source ${CmdletName}
+    Start-Process -FilePath $SetupExe -ArgumentList "--uninstall --force-uninstall --system-level" -Wait
+    Start-Sleep -Seconds 10
 
-            Execute-Process -Path $SetupExe -Parameters "--uninstall --force-uninstall --system-level"
+    # Cleanup folders
+    Remove-Item "$env:ProgramFiles\Google\Chrome" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item "$env:ProgramFiles\Google" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item "$env:ProgramFiles(x86)\Google\Chrome" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item "$env:ProgramFiles(x86)\Google" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item "$env:LOCALAPPDATA\Google\Chrome" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item "$env:LOCALAPPDATA\Google" -Recurse -Force -ErrorAction SilentlyContinue
+}
 
-            Start-Sleep -Seconds 10
-                
-             # ------------------------------------------------------------
-             # Common Cleanup (Runs for all cases)
-             # ------------------------------------------------------------
- 
-                Write-Log "Removing remaining Chrome folders." -Source ${CmdletName}
+# ------------------------------------------------------------
+# Case 3: ARP entry present BUT setup.exe missing
+# ------------------------------------------------------------
+elseif ($ChromeARP -and (-not $SetupExe)) {
+    Write-Host "ARP entry found but setup.exe missing. Cleaning orphaned Chrome registration." -ForegroundColor Green
 
-                Remove-Folder -Path "$envProgramFiles\Google\Chrome" -ErrorAction SilentlyContinue
-                Remove-Folder -Path "$envProgramFiles\Google" -ErrorAction SilentlyContinue
 
-                Remove-Folder -Path "$envProgramFilesX86\Google\Chrome" -ErrorAction SilentlyContinue
-                Remove-Folder -Path "$envProgramFilesX86\Google" -ErrorAction SilentlyContinue
-
-                Remove-Folder -Path "$env:LOCALAPPDATA\Google\Chrome" -ErrorAction SilentlyContinue
-                Remove-Folder -Path "$env:LOCALAPPDATA\Google" -ErrorAction SilentlyContinue
-        }
-        # ------------------------------------------------------------
-        # Case 3: ARP entry present BUT setup.exe missing
-        # ------------------------------------------------------------
-        elseif ($ChromeARP -and (-not $SetupExe)) {
-
-            Write-Log "ARP entry found but setup.exe missing. Cleaning orphaned Chrome registration." -Source ${CmdletName}
-
-            # Remove MSI Product Entries
+     # Remove MSI Product Entries
             Get-ChildItem "HKLM:\SOFTWARE\Classes\Installer\Products" -ErrorAction SilentlyContinue |
             ForEach-Object {
-
                 try {
                     $Props = Get-ItemProperty $_.PSPath -ErrorAction Stop
 
                     if ($Props.ProductName -like "*Google Chrome*" -or
                         $Props.ProductName -like "*Chrome*") {
 
-                        Write-Log "Removing MSI Product: $($Props.ProductName)" -Source ${CmdletName}
+                        Write-Host "Removing MSI Product: $($Props.ProductName)" -ForegroundColor Green
 
                         Remove-Item $_.PSPath -Recurse -Force -ErrorAction SilentlyContinue
                     }
                 }
                 catch {
-                    Write-Log "Failed processing MSI Product Key: $($_.PSChildName)" -Source ${CmdletName}
+                    Write-Host "Failed processing MSI Product Key: $($_.PSChildName)" -ForegroundColor Red
                 }
             }
+
             # Remove MSI UserData Entries
             Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products" -ErrorAction SilentlyContinue |
             ForEach-Object {
@@ -151,55 +181,38 @@
                     if ($Props.DisplayName -like "*Google Chrome*" -or
                         $Props.DisplayName -like "*Chrome*") {
 
-                        Write-Log "Removing MSI UserData: $($Props.DisplayName)" -Source ${CmdletName}
+                        Write-Host "Removing MSI UserData: $($Props.DisplayName)" -ForegroundColor Green
 
                         Remove-Item $_.PSPath -Recurse -Force -ErrorAction SilentlyContinue
                     }
                 }
                 catch {
-                    Write-Log "Failed processing MSI UserData Key: $($_.PSChildName)" -Source ${CmdletName}
+                    Write-Host "Failed processing MSI UserData Key: $($_.PSChildName)" -ForegroundColor Red
                 }
             }
 
-            # Remove ARP Entries
-            Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*","HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
-            ForEach-Object {
-                try {
+    # Remove ARP entries
+    Get-ItemProperty `
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", `
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" `
+        -ErrorAction SilentlyContinue | ForEach-Object {
+            if ($_.DisplayName -like "*Google Chrome*") {
+                Write-Host "Removing ARP Entry: $($Props.DisplayName)" -ForegroundColor Green
+                Remove-Item $_.PSPath -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
 
-                    $Props = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue
+    # Cleanup folders
+    Remove-Item "$env:ProgramFiles\Google\Chrome" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item "$env:ProgramFiles\Google" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item "$env:ProgramFiles(x86)\Google\Chrome" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item "$env:ProgramFiles(x86)\Google" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item "$env:LOCALAPPDATA\Google\Chrome" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item "$env:LOCALAPPDATA\Google" -Recurse -Force -ErrorAction SilentlyContinue
 
-                    if ($Props.DisplayName -like "*Google Chrome*") {
-
-                        Write-Log "Removing ARP Entry: $($Props.DisplayName)" -Source ${CmdletName}
-
-                        Remove-Item $_.PSPath -Recurse -Force -ErrorAction SilentlyContinue
-                    }
-                }
-                catch {
-                    Write-Log "Failed processing ARP Key: $($_.PSChildName)" -Source ${CmdletName}
-                }
-            }
-
-             # ------------------------------------------------------------
-             # Common Cleanup (Runs for all cases)
-             # ------------------------------------------------------------
-
-                Write-Log "Removing remaining Chrome folders." -Source ${CmdletName}
-
-                Remove-Folder -Path "$envProgramFiles\Google\Chrome" -ErrorAction SilentlyContinue
-                Remove-Folder -Path "$envProgramFiles\Google" -ErrorAction SilentlyContinue
-
-                Remove-Folder -Path "$envProgramFilesX86\Google\Chrome" -ErrorAction SilentlyContinue
-                Remove-Folder -Path "$envProgramFilesX86\Google" -ErrorAction SilentlyContinue
-
-                Remove-Folder -Path "$env:LOCALAPPDATA\Google\Chrome" -ErrorAction SilentlyContinue
-                Remove-Folder -Path "$env:LOCALAPPDATA\Google" -ErrorAction SilentlyContinue
-
-                Write-Log "Google Chrome cleanup completed." -Source ${CmdletName}
-        }
-        # ------------------------------------------------------------
-        # Case 4: Neither setup.exe nor ARP entry found
-        # ------------------------------------------------------------
-        else {
-            Write-Log "Google Chrome not detected." -Source ${CmdletName}
-        }
+    Write-Host "Google Chrome cleanup completed."
+}
+# Case 4: Neither setup.exe nor ARP entry found
+else {
+    Write-Host "Google Chrome not detected." -ForegroundColor Yellow
+}
